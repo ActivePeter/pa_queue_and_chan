@@ -11,7 +11,8 @@ use crate::tokio_transplant::atomic_waker::AtomicWaker;
 // use event_listener::{Event,EventListener};
 use crate::tokio_transplant::future::poll_fn;
 
-pub(crate) fn new<I,P:Ord+Hash+Clone>() -> (Sender<I, P>, Receiver<I, P>) {
+/// new chan tx/rx pair
+pub fn new<I,P:Ord+Hash+Clone>() -> (Sender<I, P>, Receiver<I, P>) {
     let q=Arc::new(PriorityQueue::new());
     (Sender::new(Arc::clone(&q)),Receiver::new(q))
 }
@@ -29,7 +30,7 @@ impl <I,P:Ord+Hash+Clone> PriorityQueue<I,P> {
     }
     fn push(&self,i:I,p:P){
         let mut read =Some(self.map.read().unwrap());
-        if read.as_ref().unwrap().contains_key(&p){
+        if !read.as_ref().unwrap().contains_key(&p){
             let _=read.take();
             // write
             let mut write=self.map.write().unwrap();
@@ -109,9 +110,8 @@ impl<I,P:Ord+Hash+Clone> Drop for SenderInner<I,P> {
         // self.chan.wake_event.notify(usize::MAX);
     }
 }
-
 /// sender
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Sender<I,P:Ord+Hash+Clone>{
     inner:Arc<SenderInner<I,P>>
 }
@@ -132,8 +132,13 @@ impl <I,P:Ord+Hash+Clone> Sender<I,P> {
             inner:inner
         }
     }
-    fn send_sync(&self,value:I,priority:P){
+    /// send sync
+    pub fn send_sync(&self,value:I,priority:P)->Result<(),()>{
+        if self.inner.chan.end_flag.load(Acquire){
+            return Err(())
+        }
         self.inner.chan.queue.push(value,priority);
+        Ok(())
     }
 }
 
