@@ -160,3 +160,23 @@ impl <I,P:Ord+Hash+Clone> Receiver<I,P> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests{
+    //basic no conflict test;
+    #[tokio::test]
+    async fn test_basic(){
+        use super::*;
+        let (sender,receiver)=new::<usize,usize>();
+        for i in 0..10{
+            sender.send_sync(i,i);
+        }
+        sender.send_sync(1,1);
+        sender.send_sync(2,2);
+        sender.send_sync(3,3);
+        sender.send_sync(4,4);
+        sender.send_sync(5,5);
+        sender.send_sync(6,6);
+
+    }
+}
