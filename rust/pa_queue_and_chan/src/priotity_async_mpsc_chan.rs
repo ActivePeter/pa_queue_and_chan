@@ -13,8 +13,8 @@ use crate::tokio_transplant::future::poll_fn;
 
 /// new chan tx/rx pair
 pub fn new<I,P:Ord+Hash+Clone>() -> (Sender<I, P>, Receiver<I, P>) {
-    let q=Arc::new(PriorityQueue::new());
-    (Sender::new(Arc::clone(&q)),Receiver::new(q))
+    let chan=Arc::new(PriorityChan::new());
+    (Sender::new(Arc::clone(&chan)),Receiver::new(chan))
 }
 
 #[derive(Debug)]
@@ -61,13 +61,21 @@ macro_rules! ready {
 
 #[derive(Debug)]
 struct PriorityChan<I,P:Ord+Hash+Clone>{
-    queue:Arc<PriorityQueue<I,P>>,
+    queue:PriorityQueue<I,P>,
     end_flag:AtomicBool,
     waker:AtomicWaker,
     // wake_event:Event
 }
 
 impl <I,P:Ord+Hash+Clone> PriorityChan<I,P>{
+    fn new()->PriorityChan<I, P> {
+        Self{
+            queue:PriorityQueue::new(),
+            end_flag:AtomicBool::new(false),
+            waker:AtomicWaker::new(),
+            // wake_event:Event::new(),
+        }
+    }
     // return none means closed
     fn recv(&self, cx: &mut Context<'_>) -> Poll<Option<I>> {
         macro_rules! try_recv {
@@ -95,6 +103,7 @@ impl <I,P:Ord+Hash+Clone> PriorityChan<I,P>{
         //  second time here.
         try_recv!();
 
+        println!("pending");
         Pending
     }
 }
@@ -118,15 +127,9 @@ pub struct Sender<I,P:Ord+Hash+Clone>{
 
 
 impl <I,P:Ord+Hash+Clone> Sender<I,P> {
-    fn new(priority_queue:Arc<PriorityQueue<I,P>>) -> Sender<I, P> {
-        let chan=Arc::new(PriorityChan{
-            queue:priority_queue,
-            end_flag:AtomicBool::new(false),
-            waker:AtomicWaker::new(),
-            // wake_event:Event::new()
-        });
+    fn new(chan:Arc<PriorityChan<I,P>>) -> Sender<I, P> {
         let inner=Arc::new(SenderInner{
-            chan:chan
+            chan
         });
         Self{
             inner:inner
@@ -138,6 +141,8 @@ impl <I,P:Ord+Hash+Clone> Sender<I,P> {
             return Err(())
         }
         self.inner.chan.queue.push(value,priority);
+        self.inner.chan.waker.wake();
+        // println!("wake");
         Ok(())
     }
 }
@@ -148,15 +153,9 @@ pub struct Receiver<I,P:Ord+Hash+Clone>{
     chan:Arc<PriorityChan<I,P>>
 }
 impl <I,P:Ord+Hash+Clone> Receiver<I,P> {
-    fn new(priority_queue:Arc<PriorityQueue<I,P>>) -> Receiver<I, P> {
-        let chan=Arc::new(PriorityChan{
-            queue:priority_queue,
-            end_flag:AtomicBool::new(false),
-            waker:AtomicWaker::new(),
-            // wake_event:Event::new()
-        });
-        Self{
-            chan:chan
+    fn new(chan:Arc<PriorityChan<I,P>>) -> Receiver<I, P> {
+        Receiver{
+            chan,
         }
     }
     ///receive a value
@@ -167,17 +166,51 @@ impl <I,P:Ord+Hash+Clone> Receiver<I,P> {
 
 #[cfg(test)]
 mod tests{
+    use std::time::Duration;
+
     //basic no conflict test;
     #[tokio::test]
     async fn test_basic(){
         use super::*;
+        let cnt=10000;
         let (sender,receiver)=new::<usize,usize>();
-        for i in 0..10{
-            sender.send_sync(i,9-i);
+        for i in 0..cnt{
+            let sender=sender.clone();
+            tokio::spawn(async move {
+                sender.send_sync(i,cnt-1-i).unwrap();
+            });
+            // tokio::time::sleep(Duration::from_secs(1)).await;
+            // sender.send_sync(i,9-i);
         }
-        for i in 0..10 {
-            let a=receiver.recv().await.unwrap();
-            assert_eq!(9 - a, i)
+        let res=tokio::spawn(async move {
+            for i in 0..cnt {
+                let a=receiver.recv().await.unwrap();
+                assert_eq!(cnt-1 - a, i)
+            }
+        }).await;
+        res.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sleep(){
+        use super::*;
+        println!("test sleep");
+        let (sender,receiver)=new::<usize,usize>();
+        {
+            let sender=sender.clone();
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::spawn(async move {
+                for i in 0..10{
+                    sender.send_sync(i, 9 - i).unwrap(); }
+            });
+            // sender.send_sync(i,9-i);
         }
+        // let res=tokio::spawn(async move {
+            for i in 0..10 {
+                let a=receiver.recv().await.unwrap();
+                assert_eq!(9 - a, i)
+            }
+        // }).await;
+        // res.unwrap();
     }
 }
