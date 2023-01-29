@@ -161,8 +161,7 @@ impl <I,P:Ord+Hash+Clone> Receiver<I,P> {
     }
     ///receive a value
     pub async fn recv(&self) -> Option<I> {
-        let _=poll_fn(|cx| self.chan.recv(cx)).await;
-        None
+        poll_fn(|cx| self.chan.recv(cx)).await
     }
 }
 
@@ -174,14 +173,11 @@ mod tests{
         use super::*;
         let (sender,receiver)=new::<usize,usize>();
         for i in 0..10{
-            sender.send_sync(i,i);
+            sender.send_sync(i,9-i);
         }
-        sender.send_sync(1,1);
-        sender.send_sync(2,2);
-        sender.send_sync(3,3);
-        sender.send_sync(4,4);
-        sender.send_sync(5,5);
-        sender.send_sync(6,6);
-
+        for i in 0..10 {
+            let a=receiver.recv().await.unwrap();
+            assert_eq!(9 - a, i)
+        }
     }
 }
