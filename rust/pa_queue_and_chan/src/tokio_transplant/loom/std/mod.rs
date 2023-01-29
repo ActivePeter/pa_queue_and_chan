@@ -65,14 +65,14 @@ pub(crate) mod sync {
     #[allow(unused_imports)]
     pub(crate) use std::sync::{Condvar, MutexGuard, RwLock, RwLockReadGuard, WaitTimeoutResult};
 
-    #[cfg(not(feature = "parking_lot"))]
-    pub(crate) use crate::loom::std::mutex::Mutex;
+    // #[cfg(not(feature = "parking_lot"))]
+    // pub(crate) use crate::tokio_transplant::loom::std::mutex::Mutex;
 
     pub(crate) mod atomic {
-        pub(crate) use crate::loom::std::atomic_u16::AtomicU16;
-        pub(crate) use crate::loom::std::atomic_u32::AtomicU32;
-        pub(crate) use crate::loom::std::atomic_u64::{AtomicU64, StaticAtomicU64};
-        pub(crate) use crate::loom::std::atomic_usize::AtomicUsize;
+        pub(crate) use crate::tokio_transplant::loom::std::atomic_u16::AtomicU16;
+        pub(crate) use crate::tokio_transplant::loom::std::atomic_u32::AtomicU32;
+        pub(crate) use crate::tokio_transplant::loom::std::atomic_u64::{AtomicU64, StaticAtomicU64};
+        pub(crate) use crate::tokio_transplant::loom::std::atomic_usize::AtomicUsize;
 
         pub(crate) use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicU8, Ordering};
     }

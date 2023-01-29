@@ -1,13 +1,12 @@
 #![cfg_attr(any(loom, not(feature = "sync")), allow(dead_code, unreachable_pub))]
 
-use crate::loom::cell::UnsafeCell;
-use crate::loom::hint;
-use crate::loom::sync::atomic::AtomicUsize;
 
-use std::fmt;
+use std::{fmt, hint};
 use std::panic::{resume_unwind, AssertUnwindSafe, RefUnwindSafe, UnwindSafe};
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Release};
 use std::task::Waker;
+use crate::tokio_transplant::loom::cell::UnsafeCell;
+use crate::tokio_transplant::loom::sync::atomic::AtomicUsize;
 
 /// A synchronization primitive for task waking.
 ///

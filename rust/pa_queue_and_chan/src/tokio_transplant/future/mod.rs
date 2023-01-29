@@ -2,6 +2,18 @@
 
 //! Asynchronous values.
 
+macro_rules! cfg_process {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "process")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "process")))]
+            #[cfg(not(loom))]
+            #[cfg(not(tokio_wasi))]
+            $item
+        )*
+    }
+}
+
 #[cfg(any(feature = "macros", feature = "process"))]
 pub(crate) mod maybe_done;
 
